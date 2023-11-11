@@ -24,5 +24,6 @@
 
 *.root
 *rdict.pcm
-*.dictContent.h
-*.dictUmbrella.h
+*dictContent.h
+*dictUmbrella.h
+*.cxx_tmp_*
