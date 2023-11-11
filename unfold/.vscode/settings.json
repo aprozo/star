@@ -1,0 +1,24 @@
+{
+    "files.associations": {
+        "*.cxx": "cpp",
+        "createResponseMatrix.C": "cpp",
+        "vector": "cpp",
+        "random": "cpp",
+        "deque": "cpp",
+        "string": "cpp",
+        "iosfwd": "cpp",
+        "*.tcc": "cpp",
+        "iostream": "cpp",
+        "array": "cpp",
+        "string_view": "cpp",
+        "initializer_list": "cpp",
+        "utility": "cpp",
+        "createResponseMatrixAngularity.C": "cpp",
+        "ostream": "cpp",
+        ".rootlogon.C": "cpp",
+        "tuple": "cpp",
+        "createResponseMatrixAngularityNewBins.C": "cpp",
+        "createResponseMatrixAngularityWithBorders.C": "cpp",
+        "calculateRcp.C": "cpp"
+    }
+}
