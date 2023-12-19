@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.cxx": "cpp",
+        "calculateRcp.C": "cpp",
+        "random": "cpp",
+        "vector": "cpp"
+    }
+}

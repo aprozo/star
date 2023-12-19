@@ -7,6 +7,11 @@
 #include "TH2D.h"
 #include "TString.h"
 #include "TMath.h"
+#include "TCanvas.h"
+#include "TLatex.h"
+#include "TStyle.h"
+#include "TROOT.h"
+#include "TLegend.h"
 
 struct StJetTreeStruct
 {
@@ -124,13 +129,21 @@ vector<pair<Float_t, Float_t>> ptBinsReco =
         // 60-80%
         {-15, 40}};
 
-const Int_t nCentralityBins = 5;
-double centBins[nCentralityBins + 1] = {0, 10, 20, 40, 60, 80}; // in icreasing order
-TString centralityTitles[nCentralityBins] = {"0-10%", "10-20%", "20-40%", "40-60%", "60-80%"};
-TString centralityNames[nCentralityBins] = {"0_10", "10_20", "20_40", "40_60", "60_80"};
+const Int_t nCentralityBins = 3;
+double centBins[nCentralityBins + 1] = {0, 10, 40, 80}; // in icreasing order
+TString centralityTitles[nCentralityBins] = {"0-10%", "10-40%", "40-80%"};
+TString centralityNames[nCentralityBins] = {"0_10", "10_40", "40_80"};
 const Int_t nAngularities = 4;
 TString angularityTitle[nAngularities] = {"#lambda_{1}^{1}", "#lambda_{1}^{3/2}", "#lambda_{1}^{2}", "#lambda_{1}^{3}"};
 TString angularityNames[nAngularities] = {"lambda_1_1", "lambda_1_1half", "lambda_1_2", "lambda_1_3"};
+
+void check(TH1D *h, TString name)
+{
+    if (h == nullptr)
+    {
+        cout << "Error: " << name << " not found" << endl;
+    }
+}
 
 vector<Double_t> getEqualBining(TH1D *hist, const Int_t &nBins)
 {
@@ -151,6 +164,16 @@ vector<Double_t> getEqualBining(TH1D *hist, const Int_t &nBins)
     binEdges.push_back(hist->GetBinLowEdge(nBinsHist + 1));
     return binEdges;
 }
+void NormalizeByBinWidth(TH1D *hist)
+{
+    for (int i = 1; i <= hist->GetNbinsX(); i++)
+    {
+        if (hist->GetBinWidth(i) == 0)
+            continue;
+        hist->SetBinContent(i, hist->GetBinContent(i) / hist->GetBinWidth(i));
+        hist->SetBinError(i, hist->GetBinError(i) / hist->GetBinWidth(i));
+    }
+}
 
 struct Sizes;
 
@@ -159,8 +182,23 @@ struct Hists
     Hists(){}; // default constructor
     Hists(TString _name, const Int_t &nBins, const Int_t &iCent);
     Hists(TString _name, const Sizes &sizes, const Int_t &iCent);
+    Sizes getSizes(void);
+    void SetColor(const Int_t &color)
+    {
+        hPt->SetLineColor(color);
+        hZ->SetLineColor(color);
+        for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
+        {
+            hAngularity[iLambda]->SetLineColor(color);
+        }
+    };
     void Fill(StJetTreeStruct &jet);
     void Write();
+    Hists *getNormalized(void);
+    TH1D *getPt(void) { return hPt; }
+    TH1D *getZ(void) { return hZ; }
+    TH1D *getAngularity(Int_t iLambda) { return hAngularity[iLambda]; }
+
     TH1D *hPt;
     TH1D *hZ;
     TH1D *hAngularity[nAngularities];
@@ -170,12 +208,13 @@ Hists::Hists(TString _name, const Int_t &nBins, const Int_t &iCent)
 {
     name = _name;
     Double_t xMinPt, xMaxPt, xMinZ, xMaxZ, xMinAngularity, xMaxAngularity;
+    Int_t color;
     if (name.Contains("Mc"))
     {
         xMinPt = 1;
         xMaxPt = 30;
         xMinZ = 0;
-        xMaxZ = 1;
+        xMaxZ = 1.00001;
     }
     else
     {
@@ -185,8 +224,8 @@ Hists::Hists(TString _name, const Int_t &nBins, const Int_t &iCent)
         xMaxZ = 10;
     }
 
-    hPt = new TH1D("hPt" + name + centralityNames[iCent], ";pt", nBins, xMinPt, xMaxPt);
-    hZ = new TH1D("hZ" + name + centralityNames[iCent], ";z", nBins, xMinZ, xMaxZ);
+    hPt = new TH1D("hPt" + name + centralityNames[iCent], ";p_{t}, GeV/c; dN/dp_{t}", nBins, xMinPt, xMaxPt);
+    hZ = new TH1D("hZ" + name + centralityNames[iCent], ";z = #vec{p}_{T, jet}#dot#vec{p}_{T,D^{0}} /|#vec{p}_{T, jet}|^{2};dN/dz", nBins, xMinZ, xMaxZ);
     for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
     {
         if (name.Contains("Mc"))
@@ -200,7 +239,7 @@ Hists::Hists(TString _name, const Int_t &nBins, const Int_t &iCent)
             xMinAngularity = angularityBinsRecoBorders[iCent][iLambda].first;
             xMaxAngularity = angularityBinsRecoBorders[iCent][iLambda].second;
         }
-        hAngularity[iLambda] = new TH1D(Form("hAngularity_%d", iLambda) + name + centralityNames[iCent], ";angularity", nBins, xMinAngularity, xMaxAngularity);
+        hAngularity[iLambda] = new TH1D(Form("hAngularity_%d", iLambda) + name + centralityNames[iCent], ";#lambda_{#alpha}^{1}; dN/d#lambda", nBins, xMinAngularity, xMaxAngularity);
     }
 };
 
@@ -213,8 +252,8 @@ void Hists::Fill(StJetTreeStruct &jet)
     }
 
     hPt->Fill(jet.jetpt);
-    if (jet.d0z == 1.)
-        jet.d0z -= 0.0001;
+    // if (jet.d0z == 1.)
+    //     jet.d0z -= 0.000001;
     hZ->Fill(jet.d0z);
 
     for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
@@ -231,6 +270,26 @@ void Hists::Write()
     hPt->Write();
     hZ->Write();
 };
+
+Hists *Hists::getNormalized(void)
+{
+    Hists *ret = new Hists();
+    ret->name = name;
+    ret->hPt = (TH1D *)hPt->Clone((TString)hPt->GetName() + "_normalized");
+    ret->hZ = (TH1D *)hZ->Clone((TString)hZ->GetName() + "_normalized");
+    ret->hPt->GetYaxis()->SetTitleOffset(1.2);
+    ret->hZ->GetYaxis()->SetTitleOffset(1.2);
+    NormalizeByBinWidth(ret->hPt);
+    NormalizeByBinWidth(ret->hZ);
+    for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
+    {
+        ret->hAngularity[iLambda] = (TH1D *)hAngularity[iLambda]->Clone((TString)hAngularity[iLambda]->GetName() + "_normalized");
+
+        NormalizeByBinWidth(ret->hAngularity[iLambda]);
+        ret->hAngularity[iLambda]->GetYaxis()->SetTitleOffset(1.2);
+    }
+    return ret;
+}
 
 struct Sizes
 {
@@ -274,15 +333,38 @@ struct Sizes
     }
 };
 
+vector<Double_t> getAxis(TH1D *hist)
+{
+    vector<Double_t> axis;
+    for (Int_t i = 1; i <= hist->GetNbinsX(); i++)
+    {
+        axis.push_back(hist->GetBinLowEdge(i));
+    }
+    axis.push_back(hist->GetBinLowEdge(hist->GetNbinsX() + 1));
+    return axis;
+}
+
+Sizes Hists::getSizes(void)
+{
+    Sizes sizes;
+    sizes.pt = getAxis(hPt);
+    sizes.z = getAxis(hZ);
+    for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
+    {
+        sizes.lambda[iLambda] = getAxis(hAngularity[iLambda]);
+    }
+    return sizes;
+}
+
 Hists::Hists(const TString _name, const Sizes &sizes, const Int_t &iCent)
 {
     name = _name;
 
-    hPt = new TH1D("hPt" + name + centralityNames[iCent], ";pt", sizes.pt.size() - 1, &sizes.pt[0]);
-    hZ = new TH1D("hZ" + name + centralityNames[iCent], ";z", sizes.z.size() - 1, &sizes.z[0]);
+    hPt = new TH1D("hPt" + name + centralityNames[iCent], ";p_{t}, GeV/c; dN/dp_{t}", sizes.pt.size() - 1, &sizes.pt[0]);
+    hZ = new TH1D("hZ" + name + centralityNames[iCent], ";z = #vec{p}_{T, jet}#dot#vec{p}_{T,D^{0}} /|#vec{p}_{T, jet}|^{2};dN/dz", sizes.z.size() - 1, &sizes.z[0]);
     for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
     {
-        hAngularity[iLambda] = new TH1D(Form("hAngularity_%d", iLambda) + name + centralityNames[iCent], ";angularity", sizes.lambda[iLambda].size() - 1, &sizes.lambda[iLambda][0]);
+        hAngularity[iLambda] = new TH1D(Form("hAngularity_%d", iLambda) + name + centralityNames[iCent], ";#lambda_{#alpha}^{1}; dN/d#lambda", sizes.lambda[iLambda].size() - 1, &sizes.lambda[iLambda][0]);
     }
 };
 
@@ -328,64 +410,225 @@ void FillFromTree(TTree *jetTree, Hists *histsMc, Hists *histsReco)
 
 void fillTestHistsImproved()
 {
-    const Int_t nRecoBins = 20;
-    const Int_t nMcBins = 10;
+
+    const Int_t nRecoBins = 10;
+    const Int_t nMcBins = 5;
+
+    Bool_t createFile = kFALSE;
+    TFile *outFile = new TFile(Form("binningMc%iReco%i.root", nMcBins, nRecoBins), "read");
+    if (outFile->IsZombie())
+    {
+        cout << "Creating file" << endl;
+        createFile = kTRUE;
+    }
 
     Hists Mc[nCentralityBins];
     Hists Reco[nCentralityBins];
-
-    for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
-    {
-        Mc[iCent] = Hists("Mc", 1000, iCent);
-        Reco[iCent] = Hists("Reco", 1000, iCent);
-    }
-
-    TFile *treeFile = new TFile("../output_jets.root", "READ");
-    if (treeFile->IsZombie())
-    {
-        return;
-    }
-    TTree *jetTree = (TTree *)treeFile->Get("Jets");
-
-    FillFromTree(jetTree, Mc, Reco);
-
-    Sizes sizesMc[nCentralityBins];
-    Sizes sizesReco[nCentralityBins];
-
-    for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
-    {
-        sizesMc[iCent].calculateBinning(Mc[iCent], nMcBins);
-        sizesReco[iCent].calculateBinning(Reco[iCent], nRecoBins);
-        cout << "// centrality" << centralityTitles[iCent] << endl;
-        sizesMc[iCent].Print("McBinsVec", iCent);
-        sizesReco[iCent].Print("RecoBinsVec", iCent);
-    }
-
     Hists McRebinned[nCentralityBins];
     Hists RecoRebinned[nCentralityBins];
 
-    for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
+    if (createFile)
     {
-        McRebinned[iCent] = Hists("McRebinned", sizesMc[iCent], iCent);
-        RecoRebinned[iCent] = Hists("RecoRebinned", sizesReco[iCent], iCent);
+        for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
+        {
+            Mc[iCent] = Hists("Mc", 10000, iCent);
+            Reco[iCent] = Hists("Reco", 10000, iCent);
+        }
+
+        TFile *treeFile = new TFile("../output_jets.root", "READ");
+        if (treeFile->IsZombie())
+        {
+            return;
+        }
+        TTree *jetTree = (TTree *)treeFile->Get("Jets");
+
+        FillFromTree(jetTree, Mc, Reco);
+        Sizes sizesMc[nCentralityBins];
+        Sizes sizesReco[nCentralityBins];
+        for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
+        {
+            sizesMc[iCent].calculateBinning(Mc[iCent], nMcBins);
+            sizesReco[iCent].calculateBinning(Reco[iCent], nRecoBins);
+            cout << "// centrality" << centralityTitles[iCent] << endl;
+            sizesMc[iCent].Print("McBinsVec", iCent);
+            sizesReco[iCent].Print("RecoBinsVec", iCent);
+        }
+
+        for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
+        {
+            McRebinned[iCent] = Hists("McRebinned", sizesMc[iCent], iCent);
+            RecoRebinned[iCent] = Hists("RecoRebinned", sizesReco[iCent], iCent);
+        }
+
+        // fill them with tree data
+
+        FillFromTree(jetTree, McRebinned, RecoRebinned);
+        outFile = new TFile(Form("binningMc%iReco%i.root", nMcBins, nRecoBins), "RECREATE");
+        for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
+        {
+            outFile->cd();
+            TDirectory *centDir = outFile->mkdir(Form("cent_%s", centralityNames[iCent].Data()));
+            centDir->cd();
+            Mc[iCent].SetColor(2000);
+            Mc[iCent].Write();
+            Reco[iCent].SetColor(2002);
+            Reco[iCent].Write();
+            McRebinned[iCent].SetColor(2001);
+            McRebinned[iCent].Write();
+            RecoRebinned[iCent].SetColor(2003);
+            RecoRebinned[iCent].Write();
+        }
     }
 
-    // fill them with tree data
-
-    FillFromTree(jetTree, McRebinned, RecoRebinned);
-    TFile *outFile = new TFile("testHists.root", "RECREATE");
-    for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
+    if (!createFile)
     {
+        cout << "Reading file" << endl;
         outFile->cd();
-        TDirectory *centDir = outFile->mkdir(Form("cent_%s", centralityNames[iCent].Data()));
-        centDir->cd();
-        Mc[iCent].Write();
-        Reco[iCent].Write();
-        McRebinned[iCent].Write();
-        RecoRebinned[iCent].Write();
+        for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
+        {
+            TString dir = Form("cent_%s/", centralityNames[iCent].Data());
+
+            ///=======================================
+            Mc[iCent].hPt = (TH1D *)outFile->Get(dir + "hPtMc" + centralityNames[iCent]);
+            check(Mc[iCent].hPt, dir + "hPtMc" + centralityNames[iCent]);
+            Mc[iCent].hZ = (TH1D *)outFile->Get(dir + "hZMc" + centralityNames[iCent]);
+            check(Mc[iCent].hZ, dir + "hZMc" + centralityNames[iCent]);
+            for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
+            {
+                Mc[iCent].hAngularity[iLambda] = (TH1D *)outFile->Get(dir + Form("hAngularity_%iMc", iLambda) + centralityNames[iCent]);
+                check(Mc[iCent].hAngularity[iLambda], dir + Form("hAngularity_%iiMc", iLambda) + centralityNames[iCent]);
+            }
+            ///=======================================
+            Reco[iCent].hPt = (TH1D *)outFile->Get(dir + "hPtReco" + centralityNames[iCent]);
+            check(Reco[iCent].hPt, dir + "hPtReco" + centralityNames[iCent]);
+            Reco[iCent].hZ = (TH1D *)outFile->Get(dir + "hZReco" + centralityNames[iCent]);
+            check(Reco[iCent].hZ, dir + "hZReco" + centralityNames[iCent]);
+
+            for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
+            {
+                Reco[iCent].hAngularity[iLambda] = (TH1D *)outFile->Get(dir + Form("hAngularity_%iReco", iLambda) + centralityNames[iCent]);
+                check(Reco[iCent].hAngularity[iLambda], dir + Form("hAngularity_%iReco", iLambda) + centralityNames[iCent]);
+            }
+            ///=======================================
+            McRebinned[iCent].hPt = (TH1D *)outFile->Get(dir + "hPtMcRebinned" + centralityNames[iCent]);
+            check(McRebinned[iCent].hPt, dir + "hPtMcRebinned" + centralityNames[iCent]);
+            McRebinned[iCent].hZ = (TH1D *)outFile->Get(dir + "hZMcRebinned" + centralityNames[iCent]);
+            check(McRebinned[iCent].hZ, dir + "hZMcRebinned" + centralityNames[iCent]);
+
+            for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
+            {
+                McRebinned[iCent].hAngularity[iLambda] = (TH1D *)outFile->Get(dir + Form("hAngularity_%iMcRebinned", iLambda) + centralityNames[iCent]);
+                check(McRebinned[iCent].hAngularity[iLambda], dir + Form("hAngularity_%iMcRebinned", iLambda) + centralityNames[iCent]);
+            }
+            ///=======================================
+            RecoRebinned[iCent].hPt = (TH1D *)outFile->Get(dir + "hPtRecoRebinned" + centralityNames[iCent]);
+            check(RecoRebinned[iCent].hPt, dir + "hPtRecoRebinned" + centralityNames[iCent]);
+            RecoRebinned[iCent].hZ = (TH1D *)outFile->Get(dir + "hZRecoRebinned" + centralityNames[iCent]);
+            check(RecoRebinned[iCent].hZ, dir + "hZRecoRebinned" + centralityNames[iCent]);
+
+            for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
+            {
+                RecoRebinned[iCent].hAngularity[iLambda] = (TH1D *)outFile->Get(dir + Form("hAngularity_%iRecoRebinned", iLambda) + centralityNames[iCent]);
+                check(RecoRebinned[iCent].hAngularity[iLambda], dir + Form("hAngularity_%iRecoRebinned", iLambda) + centralityNames[iCent]);
+            }
+
+            Sizes Mc = McRebinned[iCent].getSizes();
+            Sizes Reco = RecoRebinned[iCent].getSizes();
+            Mc.Print("McBinsVec", iCent);
+            Reco.Print("RecoBinsVec", iCent);
+        }
     }
+    gStyle->SetOptStat(0);
+    TCanvas *can = new TCanvas("can", "can", 900, 600);
+
+    TLatex *tex = new TLatex();
+    tex->SetNDC();
+    tex->SetTextFont(43);
+    tex->SetTextSize(20);
+    TString outPdf = Form("binningMc%iReco%i.pdf", nMcBins, nRecoBins);
+    can->SaveAs(outPdf + "[");
+
+    gStyle->SetPadRightMargin(0.01);
+    gStyle->SetPadLeftMargin(0.15);
+
+    for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
+    {
+        can->Clear();
+        can->Divide(3, 2);
+
+        cout << "Drawing " << centralityTitles[iCent] << endl;
+
+        Hists *normMc = Mc[iCent].getNormalized();
+        Hists *normReco = Reco[iCent].getNormalized();
+        Hists *normMcRebinned = McRebinned[iCent].getNormalized();
+        McRebinned[iCent].SetColor(kBlack);
+        Hists *normRecoRebinned = RecoRebinned[iCent].getNormalized();
+        RecoRebinned[iCent].SetColor(kBlack);
+
+        can->cd(1);
+        gPad->SetLogy();
+
+        cout << "hPt" << endl;
+        normMc->hPt->Draw("hist");
+        normMcRebinned->hPt->Draw("hist same");
+        McRebinned[iCent].hPt->Draw("hist same");
+        can->cd(2);
+        gPad->SetLogy();
+
+        cout << "hZ" << endl;
+        normMc->hZ->Draw("hist");
+        normMcRebinned->hZ->Draw("hist same");
+        McRebinned[iCent].hZ->Draw("hist same");
+
+        can->cd(3);
+        gPad->SetLogy();
+
+        cout << "hAngularity" << endl;
+        normMc->hAngularity[0]->Draw("hist");
+        normMcRebinned->hAngularity[0]->Draw("hist same");
+        McRebinned[iCent].hAngularity[0]->Draw("hist same");
+        can->cd(4);
+        gPad->SetLogy();
+
+        cout << "hPt Rebinned" << endl;
+        normReco->hPt->Draw("hist");
+        normRecoRebinned->hPt->Draw("hist same");
+        RecoRebinned[iCent].hPt->Draw("hist same");
+        can->cd(5);
+        gPad->SetLogy();
+
+        cout << "hZ Rebinned" << endl;
+        normReco->hZ->Draw("hist");
+        normRecoRebinned->hZ->Draw("hist same");
+        RecoRebinned[iCent].hZ->Draw("hist same");
+        can->cd(6);
+        gPad->SetLogy();
+
+        cout << "hAngularity Rebinned" << endl;
+        normReco->hAngularity[0]->Draw("hist");
+        normRecoRebinned->hAngularity[0]->Draw("hist same");
+        RecoRebinned[iCent].hAngularity[0]->Draw("hist same");
+
+        can->cd(0);
+        tex->DrawLatex(0.42, 0.85, centralityTitles[iCent]);
+
+        tex->DrawLatex(0.44, 0.96, Form("Mc N_{bins}=%i", nMcBins));
+        tex->DrawLatex(0.44, 0.47, Form("Reco N_{bins}=%i", nRecoBins));
+
+        TLegend *leg = new TLegend(0.82, 0.85, 0.97, 0.99);
+        leg->AddEntry(normMc->hPt, "Mc", "l");
+        leg->AddEntry(normMcRebinned->hPt, "McRebinned", "l");
+        leg->AddEntry(McRebinned[iCent].hPt, "Not normalized", "l");
+        leg->AddEntry(normReco->hPt, "Reco", "l");
+        leg->AddEntry(normRecoRebinned->hPt, "RecoRebinned", "l");
+        leg->Draw("same");
+
+        can->SaveAs(outPdf + "");
+    }
+    can->SaveAs(outPdf + "]");
+
     outFile->Save();
-    outFile->Close();
+    // outFile->Close();
 }
 
 void assignTree(TTree *jetTree, StJetTreeStruct &mcJet, StJetTreeStruct &recoJet)

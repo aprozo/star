@@ -42,30 +42,6 @@
 #include "RooUnfoldResponse.h"
 #include "RooUnfoldBayes.h"
 
-const vector<Float_t> ptBinsDetector = {-20, -10, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-                                        11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 30};
-
-const vector<Float_t> ptBinsParticle = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-                                        12, 14, 16, 18, 20, 30};
-
-// const vector<Float_t> ptBinsParticle = {0, 15, 30};
-
-const vector<Float_t> zBinParticle = {0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.00001};
-
-const vector<Float_t> zBinsDetector = {-3., -1., -0.5, 0., 0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2., 2.5, 3.};
-
-const vector<vector<Float_t>> angularityBinsParticle = {
-    {0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7},
-    {0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4},
-    {0, 0.025, 0.05, 0.10, 0.15, 0.2},
-    {0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06}};
-
-const vector<vector<Float_t>> angularityBinsDetector{
-    {-3, -1.5, -1.25, -1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 3},
-    {-1.5, -1.25, -1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2},
-    {-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4, 1.6},
-    {-0.5, -0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.4, 0.5}};
-
 struct StJetTreeStruct
 {
     float d0z;
@@ -84,20 +60,67 @@ const Int_t nAngularities = 4;
 TString angularityTitle[nAngularities] = {"#lambda_{1}^{1}", "#lambda_{1}^{3/2}", "#lambda_{1}^{2}", "#lambda_{1}^{3}"};
 TString angularityNames[nAngularities] = {"lambda_1_1", "lambda_1_1half", "lambda_1_2", "lambda_1_3"};
 
-const Int_t nCentralityBins = 5;
+const Int_t nCentralityBins = 3;
 
 map<Int_t, Int_t> centralityMap = {
-    {8, 0}, // 0-10%
-    {7, 1}, // 10-20%
-    {6, 2}, // 20-40%
-    {5, 2}, // 20-40%
-    {4, 3}, // 40-60%
-    {3, 3}, // 40-60%
-    {2, 4}, // 60-80%
-    {1, 4}  // 60-80%
+    {8, 0}, // 8->   0-10%
+    {7, 1}, // 7->  10-20%
+    {6, 1}, // 6->  20-30%
+    {5, 1}, // 5->  30-40%
+    {4, 2}, // 4->  40-50%
+    {3, 2}, // 3->  50-60%
+    {2, 2}, // 2->  60-70%
+    {1, 2}  // 1->  70-80%
 };
 
-double centBins[nCentralityBins + 1] = {0, 10, 20, 40, 60, 80}; // in icreasing order
+vector<Double_t> getAxisVector(TAxis *axis)
+{
+    vector<Double_t> axisVector;
+    for (Int_t i = 1; i <= axis->GetNbins(); i++)
+    {
+        axisVector.push_back(axis->GetBinLowEdge(i));
+    }
+    axisVector.push_back(axis->GetBinUpEdge(axis->GetNbins()));
+    return axisVector;
+}
+
+TH2D *invertAxis(TH2D *hist)
+{
+
+    vector<Double_t> xAxisVector = getAxisVector(hist->GetXaxis());
+    vector<Double_t> yAxisVector = getAxisVector(hist->GetYaxis());
+
+    Int_t nBinsX = xAxisVector.size() - 1;
+    Int_t nBinsY = yAxisVector.size() - 1;
+
+    TH2D *histInv = new TH2D(hist->GetName(), hist->GetTitle(), nBinsY, &yAxisVector[0], nBinsX, &xAxisVector[0]);
+    for (Int_t iBinX = 1; iBinX <= nBinsX; iBinX++)
+    {
+        for (Int_t iBinY = 1; iBinY <= nBinsY; iBinY++)
+        {
+            histInv->SetBinContent(iBinY, iBinX, hist->GetBinContent(iBinX, iBinY));
+            histInv->SetBinError(iBinY, iBinX, hist->GetBinError(iBinX, iBinY));
+        }
+    }
+    return histInv;
+}
+
+void NormalizeByBinWidth(TH1D *hist, const Int_t color)
+{
+    for (int i = 1; i <= hist->GetNbinsX(); i++)
+    {
+        if (hist->GetBinWidth(i) != 0)
+        {
+            hist->SetBinContent(i, hist->GetBinContent(i) / hist->GetBinWidth(i));
+            hist->SetBinError(i, hist->GetBinError(i) / hist->GetBinWidth(i));
+        }
+    }
+    hist->SetLineColor(color);
+    hist->SetMarkerColor(color);
+    hist->SetMarkerStyle(20);
+}
+
+double centBins[nCentralityBins + 1] = {0, 10, 40, 80}; // in icreasing order
 Int_t getCentralityBin(const Float_t &centrality)
 {
     for (Int_t i = 0; i < nCentralityBins; i++)
@@ -109,10 +132,97 @@ Int_t getCentralityBin(const Float_t &centrality)
     return -1;
 }
 
-const Double_t Ncoll[nCentralityBins] = {952., 599., 297., 93., 21.};
+// https://www.star.bnl.gov/protected/lfsupc/tdrk/Centrality/Run19AuAu200/top20_tables/table_Ncoll_vs_centrality_systematicerror.txt
+const Double_t Ncoll[nCentralityBins] = {952., 397., 58.};
 
-TString centralityTitles[nCentralityBins] = {"0-10%", "10-20%", "20-40%", "40-60%", "60-80%"};
-TString centralityNames[nCentralityBins] = {"0_10", "10_20", "20_40", "40_60", "60_80"};
+TString centralityTitles[nCentralityBins] = {"0-10%", "10-40%", "40-80%"};
+TString centralityNames[nCentralityBins] = {"0_10", "10_40", "40_80"};
+
+void plotComparison(TCanvas *can, TH2D *hUnfolded, TH2D *hRealData, TH2D *hMc, TH2D *hMcMeasured, const Int_t &iCent, TString var)
+{
+
+    TLatex *tex = new TLatex();
+    tex->SetNDC();
+    tex->SetTextFont(42);
+    tex->SetTextSize(0.055);
+
+    can->Clear();
+
+    can->Divide(2, 2);
+    TH1D *hUnfoldedProjX = (TH1D *)hUnfolded->ProjectionX("hUnfoldedProjX");
+    TH1D *hRealDataProjX = (TH1D *)hRealData->ProjectionX("hRealDataProjX");
+    TH1D *hMcProjX = (TH1D *)hMc->ProjectionX("hMcProjX");
+    TH1D *hMcMeasuredProjX = (TH1D *)hMcMeasured->ProjectionX("hMcMeasuredProjX");
+    NormalizeByBinWidth(hUnfoldedProjX, 2001);
+    NormalizeByBinWidth(hRealDataProjX, 2002);
+    NormalizeByBinWidth(hMcProjX, 2003);
+    NormalizeByBinWidth(hMcMeasuredProjX, 2004);
+
+    TLegend *leg1 = new TLegend(0.2, 0.8, 0.3, 0.9);
+    leg1->SetBorderSize(0);
+    leg1->SetFillStyle(0);
+
+    TLegend *leg2 = new TLegend(0.8, 0.8, 0.9, 0.9);
+    leg2->SetBorderSize(0);
+    leg2->SetFillStyle(0);
+
+    leg1->AddEntry(hUnfoldedProjX, "Unfolded", "l");
+    leg2->AddEntry(hRealDataProjX, "Real Data", "l");
+    leg1->AddEntry(hMcProjX, "Mc", "l");
+    leg2->AddEntry(hMcMeasuredProjX, "Mc Reco", "l");
+    // first draw and compare x projections of hUnfolded and hMc
+    can->cd(1);
+    gPad->SetLogy();
+    hUnfoldedProjX->GetYaxis()->SetTitle("dN/dp_{t}");
+    hUnfoldedProjX->Draw();
+    hMcProjX->Scale(hUnfoldedProjX->GetMaximum() / hMcProjX->GetMaximum());
+    hMcProjX->Draw("same");
+
+    // first draw and compare x projections of hRealData and hMcMeasured
+    can->cd(2);
+    gPad->SetLogy();
+
+    hRealDataProjX->GetYaxis()->SetTitle("dN/dp_{t}");
+    hRealDataProjX->GetXaxis()->SetTitle("p_{t}, GeV/c");
+    hRealDataProjX->Draw();
+    hMcMeasuredProjX->Scale(hRealDataProjX->GetMaximum() / hMcMeasuredProjX->GetMaximum());
+    hMcMeasuredProjX->Draw("same");
+
+    TH1D *hUnfoldedProjY = (TH1D *)hUnfolded->ProjectionY("hUnfoldedProjY");
+    TH1D *hRealDataProjY = (TH1D *)hRealData->ProjectionY("hRealDataProjY");
+    TH1D *hMcProjY = (TH1D *)hMc->ProjectionY("hMcProjY");
+    TH1D *hMcMeasuredProjY = (TH1D *)hMcMeasured->ProjectionY("hMcMeasuredProjY");
+    NormalizeByBinWidth(hUnfoldedProjY, 2001);
+    NormalizeByBinWidth(hRealDataProjY, 2002);
+    NormalizeByBinWidth(hMcProjY, 2003);
+    NormalizeByBinWidth(hMcMeasuredProjY, 2004);
+    // first draw and compare y projections of hUnfolded and hMc
+    can->cd(3);
+    gPad->SetLogy();
+
+    hUnfoldedProjY->GetYaxis()->SetTitle("dN/d" + var);
+    hUnfoldedProjY->Draw();
+    hMcProjY->Scale(hUnfoldedProjY->GetMaximum() / hMcProjY->GetMaximum());
+    hMcProjY->Draw("same");
+
+    // first draw and compare y projections of hRealData and hMcMeasured
+    can->cd(4);
+    gPad->SetLogy();
+    hRealDataProjY->GetYaxis()->SetTitle("dN/d" + var);
+    hRealDataProjY->GetXaxis()->SetTitle(var);
+    hRealDataProjY->Draw();
+    hMcMeasuredProjY->Scale(hRealDataProjY->GetMaximum() / hMcMeasuredProjY->GetMaximum());
+    hMcMeasuredProjY->Draw("same");
+
+    can->cd();
+    leg1->Draw("same");
+    leg2->Draw("same");
+    tex->DrawLatex(0.2, 0.65, "p_{t}");
+
+    tex->DrawLatex(0.2, 0.25, centralityTitles[iCent] + "  " + var);
+
+    can->SaveAs("rcp.pdf");
+}
 
 void assignTree(TTree *jetTree, StJetTreeStruct &jet);
 
@@ -125,9 +235,10 @@ void calculateRcp()
     TH2::SetDefaultSumw2();
     gStyle->SetOptStat(0);
     gStyle->SetOptFit(0);
+    gStyle->SetOptTitle(0);
 
     // Read response matrix from file
-    TFile *responseFile = new TFile("../unfold/response.root", "READ");
+    TFile *responseFile = new TFile("../unfold/responseMc5Reco10.root", "READ");
     responseFile->cd();
 
     RooUnfoldResponse *response[nCentralityBins];
@@ -135,6 +246,11 @@ void calculateRcp()
 
     TH2D *hMeasured[nCentralityBins];
     TH2D *hUnfolded[nCentralityBins];
+    TH2D *hMc[nCentralityBins];
+    TH2D *hMcAngularity[nCentralityBins][nAngularities];
+
+    TH2D *hMcMeasured[nCentralityBins];
+    TH2D *hMcMeasuredAngularity[nCentralityBins][nAngularities];
 
     TH2D *hMeasuredAngularity[nCentralityBins][nAngularities];
     TH2D *hUnfoldedAngularity[nCentralityBins][nAngularities];
@@ -142,59 +258,94 @@ void calculateRcp()
     for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
     {
         response[iCent] = (RooUnfoldResponse *)responseFile->Get(centralityNames[iCent] + "/response" + centralityNames[iCent]);
-        hMeasured[iCent] = new TH2D("Meas" + centralityNames[iCent], ";p_{t}, GeV/c; z = #vec{p}_{T, jet}#dot#vec{p}_{T,D^{0}} /|#vec{p}_{T, jet}|^{2}", ptBinsDetector.size() - 1, &ptBinsDetector[0], zBinsDetector.size() - 1, &zBinsDetector[0]);
-        hUnfolded[iCent] = new TH2D("Unfolded" + centralityNames[iCent], ";p_{t}, GeV/c; z = #vec{p}_{T, jet}#dot#vec{p}_{T,D^{0}} /|#vec{p}_{T, jet}|^{2}", ptBinsParticle.size() - 1, &ptBinsParticle[0], zBinParticle.size() - 1, &zBinParticle[0]);
+        hMcMeasured[iCent] = (TH2D *)responseFile->Get(centralityNames[iCent] + "/MeasTest" + centralityNames[iCent]);
+        hMc[iCent] = (TH2D *)responseFile->Get(centralityNames[iCent] + "/TrueTest" + centralityNames[iCent]);
+        // hMeasured[iCent] = new TH2D("Meas" + centralityNames[iCent], ";p_{t}, GeV/c; z = #vec{p}_{T, jet}#dot#vec{p}_{T,D^{0}} /|#vec{p}_{T, jet}|^{2}", ptBinsDetector.size() - 1, &ptBinsDetector[0], zBinsDetector.size() - 1, &zBinsDetector[0]);
 
         for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
         {
             responseAngularity[iCent][iLambda] = (RooUnfoldResponse *)responseFile->Get(centralityNames[iCent] + "/response" + centralityNames[iCent] + angularityNames[iLambda]);
+            hMcMeasuredAngularity[iCent][iLambda] = (TH2D *)responseFile->Get(centralityNames[iCent] + "/MeasTest" + centralityNames[iCent] + angularityNames[iLambda]);
+            hMcAngularity[iCent][iLambda] = (TH2D *)responseFile->Get(centralityNames[iCent] + "/TrueTest" + centralityNames[iCent] + angularityNames[iLambda]);
 
-            hMeasuredAngularity[iCent][iLambda] = new TH2D("Meas" + centralityNames[iCent] + angularityNames[iLambda], ";p_{t}, GeV/c;" + angularityTitle[iLambda], ptBinsDetector.size() - 1, &ptBinsDetector[0], angularityBinsDetector[iLambda].size() - 1, &angularityBinsDetector[iLambda][0]);
-            hUnfoldedAngularity[iCent][iLambda] = new TH2D("Unfolded" + centralityNames[iCent] + angularityNames[iLambda], ";p_{t}, GeV/c;" + angularityTitle[iLambda], ptBinsParticle.size() - 1, &ptBinsParticle[0], angularityBinsParticle[iLambda].size() - 1, &angularityBinsParticle[iLambda][0]);
+            //  hMeasuredAngularity[iCent][iLambda] = new TH2D("Meas" + centralityNames[iCent] + angularityNames[iLambda], ";p_{t}, GeV/c;" + angularityTitle[iLambda], ptBinsDetector.size() - 1, &ptBinsDetector[0], angularityBinsDetector[iLambda].size() - 1, &angularityBinsDetector[iLambda][0]);
         }
     }
 
-    TFile *treeFile; // Open the file containing the tree.
-    // treeFile = new TFile("../D0_jets_2014_231030.root", "READ");
-    treeFile = new TFile("../output_jets.root", "READ");
-    if (!treeFile || treeFile->IsZombie())
+    // TFile *treeFile; // Open the file containing the tree.
+    //  treeFile = new TFile("../D0_jets_2014_231030.root", "READ");
+    // //treeFile = new TFile("../output_jets.root", "READ");
+    // if (!treeFile || treeFile->IsZombie())
+    // {
+    //     return;
+    // }
+    // TTree *jetTree = (TTree *)treeFile->Get("Jets");
+    // StJetTreeStruct jet;
+    // assignTree(jetTree, jet);
+    // Long_t nEntries = jetTree->GetEntries() / 1.;
+
+    // cout << "nEntries = " << (Float_t)nEntries / 1000. << "k" << endl
+    //      << endl;
+
+    // for (Int_t iEntry = 0; iEntry < nEntries; iEntry++)
+    // {
+    //     Float_t progress = 0.;
+    //     progress = (Float_t)iEntry / (Float_t)nEntries;
+    //     if (iEntry % 1000 == 0)
+    //     {
+    //         cout << "\r (" << (progress * 100.0) << "%)" << std::flush;
+    //     }
+    //     jetTree->GetEntry(iEntry);
+    //     // if (jet.d0mass < 1.82054 || jet.d0mass > 1.90946)
+    //     //     continue;
+    //     // if (jet.centrality <= 1)
+    //     //     continue;   // skip 80-100% centrality
+    //     // Int_t centBin =  centralityMap[(Int_t)jet.centrality];
+    //     Int_t centBin = getCentralityBin(jet.centrality);
+    //     if (jet.d0mass == 0)
+    //         continue;
+
+    //     hMeasured[centBin]->Fill(jet.ptcorr, jet.d0z);
+    //     for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
+    //     {
+    //         hMeasuredAngularity[centBin][iLambda]->Fill(jet.ptcorr, jet.lambda[iLambda]);
+    //     }
+
+    // } // end of loop over train entries
+
+    // Read measured histograms from file
+
+    TFile *realDataFile = new TFile("../splot_2D_histogram_samePT.root", "READ");
+
+    TString centralityNamesTemp[nCentralityBins] = {"010", "1040", "4080"};
+    TString temp = "_hist_60";
+    TString varNamesTemp[nAngularities] = {"lambda_1_1", "lambda_1_1half", "lambda_1_2", "lambda_1_3"};
+
+    TCanvas *can = new TCanvas("can", "", 1200, 1200);
+    can->SaveAs("rcp.pdf[");
+    TLatex *tex = new TLatex();
+    tex->SetNDC();
+    tex->SetTextFont(42);
+    tex->SetTextSize(0.055);
+
+    can->cd();
+    for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
     {
-        return;
-    }
-    TTree *jetTree = (TTree *)treeFile->Get("Jets");
-    StJetTreeStruct jet;
-    assignTree(jetTree, jet);
-    Long_t nEntries = jetTree->GetEntries() / 1.;
-
-    cout << "nEntries = " << (Float_t)nEntries / 1000. << "k" << endl
-         << endl;
-
-    for (Int_t iEntry = 0; iEntry < nEntries; iEntry++)
-    {
-        Float_t progress = 0.;
-        progress = (Float_t)iEntry / (Float_t)nEntries;
-        if (iEntry % 1000 == 0)
-        {
-            cout << "\r (" << (progress * 100.0) << "%)" << std::flush;
-        }
-        jetTree->GetEntry(iEntry);
-        // if (jet.d0mass < 1.82054 || jet.d0mass > 1.90946)
-        //     continue;
-        // if (jet.centrality <= 1)
-        //     continue;   // skip 80-100% centrality
-        // Int_t centBin =  centralityMap[(Int_t)jet.centrality];
-        Int_t centBin = getCentralityBin(jet.centrality);
-        if (jet.d0mass == 0)
-            continue;
-
-        hMeasured[centBin]->Fill(jet.ptcorr, jet.d0z);
+        hMeasured[iCent] = (TH2D *)realDataFile->Get("z" + temp + centralityNamesTemp[iCent] + "_2D");
+        hMeasured[iCent] = invertAxis(hMeasured[iCent]);
+        hMeasured[iCent]->Draw("colz");
+        tex->DrawLatex(0.2, 0.8, centralityTitles[iCent]);
+        can->SaveAs("rcp.pdf");
         for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
         {
-            hMeasuredAngularity[centBin][iLambda]->Fill(jet.ptcorr, jet.lambda[iLambda]);
+            hMeasuredAngularity[iCent][iLambda] = (TH2D *)realDataFile->Get(varNamesTemp[iLambda] + temp + centralityNamesTemp[iCent] + "_2D");
+            hMeasuredAngularity[iCent][iLambda] = invertAxis(hMeasuredAngularity[iCent][iLambda]);
+            hMeasuredAngularity[iCent][iLambda]->Draw("colz");
+            tex->DrawLatex(0.2, 0.8, centralityTitles[iCent] + " " + angularityTitle[iLambda]);
+            can->SaveAs("rcp.pdf");
         }
-
-    } // end of loop over train entries
-
+    }
+    //  can->SaveAs("rcp.pdf]");
     cout << "reading finished" << endl;
 
     // Create RooUnfoldBayes object and run the unfolding
@@ -203,22 +354,20 @@ void calculateRcp()
         RooUnfoldBayes unfolding(response[iCent], hMeasured[iCent], 5);
         hUnfolded[iCent] = (TH2D *)unfolding.Hunfold();
 
+        plotComparison(can, hUnfolded[iCent], hMeasured[iCent], hMc[iCent], hMcMeasured[iCent], iCent, "z");
+
         for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
         {
             RooUnfoldBayes unfoldingAngularity(responseAngularity[iCent][iLambda], hMeasuredAngularity[iCent][iLambda], 5);
             hUnfoldedAngularity[iCent][iLambda] = (TH2D *)unfoldingAngularity.Hunfold();
+
+            plotComparison(can, hUnfoldedAngularity[iCent][iLambda], hMeasuredAngularity[iCent][iLambda], hMcAngularity[iCent][iLambda], hMcMeasuredAngularity[iCent][iLambda], iCent, angularityTitle[iLambda]);
         }
     }
 
     // Draw closure test check
-    TCanvas *can = new TCanvas("can", "", 1200, 1200);
-    can->SaveAs("rcp.pdf[");
-    TLatex *tex = new TLatex();
-    tex->SetNDC();
-    tex->SetTextFont(42);
-    tex->SetTextSize(0.055);
 
-    TString RcpTitles[5] = {"0-10/60-80", "0-10/10-20", "10-20/20-40", "20-40/40-60", "40-60/60-80"};
+    TString RcpTitles[3] = {"0-10/40-80", "0-10/10-40", "10-40/40-80"};
     // Create all ratios betweein centrality histograms
     // 0 - 10 / 60 - 80
     TH2D *hRcp[nCentralityBins];
@@ -228,6 +377,8 @@ void calculateRcp()
     hRcp[0]->Divide(hUnfolded[nCentralityBins - 1]);
     hRcp[0]->Scale(Ncoll[nCentralityBins - 1] / Ncoll[0]);
 
+    can->cd();
+
     for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
     {
         hRcpAngularity[0][iLambda] = (TH2D *)hUnfoldedAngularity[0][iLambda]->Clone("hRcp" + angularityNames[iLambda] + RcpTitles[0]);
@@ -235,55 +386,90 @@ void calculateRcp()
         hRcpAngularity[0][iLambda]->Scale(Ncoll[nCentralityBins - 1] / Ncoll[0]);
     }
 
-    for (Int_t iCent = 1; iCent < nCentralityBins; iCent++)
-    {
-        hRcp[iCent] = (TH2D *)hUnfolded[iCent]->Clone("hRcp" + centralityNames[iCent]);
-        hRcp[iCent]->Divide(hUnfolded[iCent - 1]);
-        hRcp[iCent]->Scale(Ncoll[iCent - 1] / Ncoll[iCent]);
+    // for (Int_t iCent = 1; iCent < nCentralityBins; iCent++)
+    // {
+    //     hRcp[iCent] = (TH2D *)hUnfolded[iCent]->Clone("hRcp" + centralityNames[iCent]);
+    //     hRcp[iCent]->Divide(hUnfolded[iCent - 1]);
+    //     hRcp[iCent]->Scale(Ncoll[iCent - 1] / Ncoll[iCent]);
 
-        for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
-        {
-            hRcpAngularity[iCent][iLambda] = (TH2D *)hUnfoldedAngularity[iCent][iLambda]->Clone("hRcp" + centralityNames[iCent] + angularityNames[iLambda]);
-            hRcpAngularity[iCent][iLambda]->Divide(hUnfoldedAngularity[iCent - 1][iLambda]);
-            hRcpAngularity[iCent][iLambda]->Scale(Ncoll[iCent - 1] / Ncoll[iCent]);
-        }
-    }
+    //     for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
+    //     {
+    //         hRcpAngularity[iCent][iLambda] = (TH2D *)hUnfoldedAngularity[iCent][iLambda]->Clone("hRcp" + centralityNames[iCent] + angularityNames[iLambda]);
+    //         hRcpAngularity[iCent][iLambda]->Divide(hUnfoldedAngularity[iCent - 1][iLambda]);
+    //         hRcpAngularity[iCent][iLambda]->Scale(Ncoll[iCent - 1] / Ncoll[iCent]);
+    //     }
+    // }
 
     // Draw Rcp
     can->cd();
+    can->Clear();
+    can->Divide(2, 1);
     TLegend *leg = new TLegend(0.6, 0.6, 0.9, 0.9);
     leg->SetBorderSize(0);
     leg->SetFillStyle(0);
 
-    const Int_t colors[5] = {kBlack, kRed, kBlue, kGreen, kMagenta};
+    const Int_t colors[5] = {2001, 2002, 2003, 2004, kMagenta};
 
-    for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
+    for (Int_t iCent = 0; iCent < 1; iCent++)
     {
+        can->cd(2);
         TH1D *hz = (TH1D *)hRcp[iCent]->ProjectionY("hz" + centralityNames[iCent]);
         hz->GetYaxis()->SetTitle("R_{cp}");
         hz->SetLineColor(colors[iCent]);
         hz->SetMarkerColor(colors[iCent]);
         hz->SetMarkerStyle(20);
-        hz->GetYaxis()->SetRangeUser(0.0, 2.0);
+        // hz->GetYaxis()->SetRangeUser(0.0, 2.0);
         hz->DrawClone(iCent == 0 ? "" : "same");
         leg->AddEntry(hz, RcpTitles[iCent], "l");
+
+        can->cd(1);
+        TH1D *hptz = (TH1D *)hRcp[iCent]->ProjectionX("hptz" + centralityNames[iCent]);
+        hptz->GetYaxis()->SetTitle("R_{cp}");
+        hptz->SetLineColor(colors[iCent]);
+        hptz->SetMarkerColor(colors[iCent]);
+        hptz->SetMarkerStyle(20);
+        // hz->GetYaxis()->SetRangeUser(0.0, 2.0);
+        hptz->DrawClone(iCent == 0 ? "" : "same");
     }
+    can->cd();
     leg->Draw("same");
     tex->DrawLatex(0.2, 0.8, "z R_{cp}");
     can->SaveAs("rcp.pdf");
 
     for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
     {
-        for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
+
+        can->Clear();
+        can->Divide(2, 1);
+        can->cd(2);
+        for (Int_t iCent = 0; iCent < 1; iCent++)
         {
+
             TH1D *hLambda = (TH1D *)hRcpAngularity[iCent][iLambda]->ProjectionY("hLambda" + centralityNames[iCent] + angularityNames[iLambda]);
             hLambda->SetLineColor(colors[iCent]);
             hLambda->SetMarkerColor(colors[iCent]);
             hLambda->SetMarkerStyle(20);
             hLambda->GetYaxis()->SetTitle("R_{cp}");
-            hLambda->GetYaxis()->SetRangeUser(0.0, 2.0);
+            // hLambda->GetYaxis()->SetRangeUser(0.0, 2.0);
             hLambda->DrawClone(iCent == 0 ? "" : "same");
         }
+
+        can->cd(1);
+
+        for (Int_t iCent = 0; iCent < 1; iCent++)
+        {
+
+            TH1D *hptLambda = (TH1D *)hRcpAngularity[iCent][iLambda]->ProjectionX("hptLambda" + centralityNames[iCent] + angularityNames[iLambda]);
+            hptLambda->SetLineColor(colors[iCent]);
+            hptLambda->SetMarkerColor(colors[iCent]);
+            hptLambda->SetMarkerStyle(20);
+            hptLambda->GetYaxis()->SetTitle("R_{cp}");
+            // hptLambda->GetYaxis()->SetRangeUser(0.0, 2.0);
+            hptLambda->DrawClone(iCent == 0 ? "" : "same");
+        }
+
+        can->cd();
+
         leg->Draw("same");
         tex->DrawLatex(0.2, 0.8, angularityTitle[iLambda] + " R_{cp}");
         can->SaveAs("rcp.pdf");
