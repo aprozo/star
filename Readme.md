@@ -29,7 +29,7 @@ And to ~/.rootlogon.C(example here) the following:
 ```
 
 ## Mc Jet Tree
-* Embedding jet tree fils is on SDCC `/gpfs01/star/pwg/prozorov/HFjets/myJetFramework/output_jets.root`
+* Embedding jet tree file is on SDCC `/gpfs01/star/pwg/prozorov/HFjets/myJetFramework/output_jets.root`, you should copy it to your directory.
 
 * If interested, the macro used to create this file is in `StHIOverlayAngularities.cxx(.h)` in StRoot directory
 
