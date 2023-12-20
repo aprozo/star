@@ -40,7 +40,6 @@ And to ~/.rootlogon.C(example here) the following:
 * The equiprobale binning for the Mc sample (and Unfolded real data) is calculated in `/unfold/fillTestHistsImproved.C`
 
 
-## Rcp analysis
 
 
 
