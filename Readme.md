@@ -35,7 +35,7 @@ And to ~/.rootlogon.C(example here) the following:
 
 
 ## Unfolding macros
-* Macro to create response Matrix is in `/unfold/createResponseMatrixAngularity3CentralityBins.C`
+* Macro to create response Matrix is in `/unfold/createResponseMatrix.C`
 
 * The equiprobale binning for the Mc sample (and Unfolded real data) is calculated in `/unfold/fillTestHistsImproved.C`
 
