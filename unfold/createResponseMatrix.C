@@ -298,7 +298,7 @@ void plotIterations(TCanvas *can, TString outPdf, RooUnfoldResponse *response, T
 
 void assignTree(TTree *jetTree, StJetTreeStruct &mcJet, StJetTreeStruct &recoJet, StJetTreeStruct &mcRecoJet);
 
-vector<Double_t> getAxis(TH1D *hist)
+vector<Double_t> getBinEdges(TH1D *hist) // get bin edges from 1D histogram
 {
     vector<Double_t> axis;
     for (Int_t i = 1; i <= hist->GetNbinsX(); i++)
@@ -307,20 +307,29 @@ vector<Double_t> getAxis(TH1D *hist)
     }
     axis.push_back(hist->GetBinLowEdge(hist->GetNbinsX() + 1));
 
-    // comare last 2 bins and remove the last bins in case they are equal
-
-    if (axis[axis.size() - 1] == axis[axis.size() - 2])
+    if (axis[axis.size() - 1] == axis[axis.size() - 2]) // compare last 2 bins and remove the last bins in case they are equal
     {
         axis.pop_back();
     }
 
-    if (axis[axis.size() - 1] == 1.)
+    if (axis[axis.size() - 1] == 1.) // special case for D0 z
         axis.push_back(1.00001);
 
     return axis;
 }
 
-void PrintComponent(const vector<Double_t> &vec)
+vector<Double_t> getBinEdges(TAxis *axis) // get bin edges from 1D histogram
+{
+    vector<Double_t> axisVector;
+    for (Int_t i = 1; i <= axis->GetNbins(); i++)
+    {
+        axisVector.push_back(axis->GetBinLowEdge(i));
+    }
+    axisVector.push_back(axis->GetBinUpEdge(axis->GetNbins()));
+    return axisVector;
+}
+
+void PrintVectorBinEdges(const vector<Double_t> &vec) // simple print of the bin edges for copy/paste if needed manually
 {
     for (Int_t i = 0; i < vec.size(); i++)
     {
@@ -333,18 +342,7 @@ void PrintComponent(const vector<Double_t> &vec)
     cout << "};" << endl;
 }
 
-vector<Double_t> getAxisVector(TAxis *axis)
-{
-    vector<Double_t> axisVector;
-    for (Int_t i = 1; i <= axis->GetNbins(); i++)
-    {
-        axisVector.push_back(axis->GetBinLowEdge(i));
-    }
-    axisVector.push_back(axis->GetBinUpEdge(axis->GetNbins()));
-    return axisVector;
-}
-
-void createResponseMatrixAngularity3CentralityBins()
+void createResponseMatrix()
 {
 
     Int_t nMcBins = 5;
@@ -358,7 +356,8 @@ void createResponseMatrixAngularity3CentralityBins()
     gStyle->SetOptStat(0);
     gStyle->SetOptFit(0);
 
-    // reco bins
+    ///////////////////////////////////////////////////////////////////////////
+    // reco bins from real data
 
     TFile *realDataFile = new TFile("../splot_2D_histogram_samePT.root", "READ");
     if (!realDataFile || realDataFile->IsZombie())
@@ -377,42 +376,46 @@ void createResponseMatrixAngularity3CentralityBins()
     for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
     {
         hDataZ[iCent] = (TH2D *)realDataFile->Get("z" + temp + centralityNamesTemp[iCent] + "_2D");
-        zRecoBinsVec[iCent] = getAxisVector(hDataZ[iCent]->GetXaxis());
-        ptRecoBinsVec[iCent] = getAxisVector(hDataZ[iCent]->GetYaxis());
-        PrintComponent(zRecoBinsVec[iCent]);
-        PrintComponent(ptRecoBinsVec[iCent]);
+        zRecoBinsVec[iCent] = getBinEdges(hDataZ[iCent]->GetXaxis());
+        ptRecoBinsVec[iCent] = getBinEdges(hDataZ[iCent]->GetYaxis());
+        PrintVectorBinEdges(zRecoBinsVec[iCent]);
+        PrintVectorBinEdges(ptRecoBinsVec[iCent]);
 
         for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
         {
             hDataLambda[iCent][iLambda] = (TH2D *)realDataFile->Get(varNamesTemp[iLambda] + temp + centralityNamesTemp[iCent] + "_2D");
-            angularityRecoBinsVec[iCent][iLambda] = getAxisVector(hDataLambda[iCent][iLambda]->GetXaxis());
-            PrintComponent(angularityRecoBinsVec[iCent][iLambda]);
+            angularityRecoBinsVec[iCent][iLambda] = getBinEdges(hDataLambda[iCent][iLambda]->GetXaxis());
+            PrintVectorBinEdges(angularityRecoBinsVec[iCent][iLambda]);
         }
     }
+    ///////////////////////////////////////////////////////////////////////////
+    // or one can use manually set bins and uncomment here
+    // zRecoBinsVec[0] = {-5, -0.38, 0.115, 0.17, 0.247, 0.335, 0.445, 0.61, 0.962, 2.326, 6}; //0-10%
+    // zRecoBinsVec[1] = {-5, -0.732, 0.159, 0.247, 0.335, 0.434, 0.577, 0.786, 1.149, 2.249, 6}; //10-40%
+    // zRecoBinsVec[2] = {-5, 0.335, 0.478, 0.599, 0.731, 0.863, 1.039, 1.292, 1.666, 2.645, 6}; //40-80%
 
-    // zRecoBinsVec[0] = {-5, -0.38, 0.115, 0.17, 0.247, 0.335, 0.445, 0.61, 0.962, 2.326, 6};
-    // zRecoBinsVec[1] = {-5, -0.732, 0.159, 0.247, 0.335, 0.434, 0.577, 0.786, 1.149, 2.249, 6};
-    // zRecoBinsVec[2] = {-5, 0.335, 0.478, 0.599, 0.731, 0.863, 1.039, 1.292, 1.666, 2.645, 6};
+    // ptRecoBinsVec[0] = {-15, -0.425, 1.115, 2.38, 3.535, 4.745, 6.395, 8.485, 11.345, 16.68, 40}; //0-10%
+    // ptRecoBinsVec[1] = {-15, -0.425, 0.62, 1.555, 2.435, 3.425, 4.47, 5.79, 7.605, 10.85, 40};  //10-40%
+    // ptRecoBinsVec[2] = {-15, 0.565, 1.06, 1.5, 1.94, 2.435, 2.985, 3.645, 4.525, 6.065, 40};   //40-80%
 
-    // ptRecoBinsVec[0] = {-15, -0.425, 1.115, 2.38, 3.535, 4.745, 6.395, 8.485, 11.345, 16.68, 40};
-    // ptRecoBinsVec[1] = {-15, -0.425, 0.62, 1.555, 2.435, 3.425, 4.47, 5.79, 7.605, 10.85, 40};
-    // ptRecoBinsVec[2] = {-15, 0.565, 1.06, 1.5, 1.94, 2.435, 2.985, 3.645, 4.525, 6.065, 40};
+    // angularityRecoBinsVec[0][0] = {-5, 0.475, 0.805, 1.1575, 1.4575, 1.7875, 2.1325, 2.605, 3.3325, 4.8475, 10}; //0-10%
+    // angularityRecoBinsVec[1][0] = {-5, 0.3925, 0.7975, 1.045, 1.2625, 1.4875, 1.765, 2.1775, 2.77, 4.1875, 10}; //10-40%
+    // angularityRecoBinsVec[2][0] = {-5, 0.295, 0.475, 0.5875, 0.7, 0.82, 0.94, 1.15, 1.4125, 2.395, 10};     //40-80%
 
-    // angularityRecoBinsVec[0][0] = {-5, 0.475, 0.805, 1.1575, 1.4575, 1.7875, 2.1325, 2.605, 3.3325, 4.8475, 10};
-    // angularityRecoBinsVec[1][0] = {-5, 0.3925, 0.7975, 1.045, 1.2625, 1.4875, 1.765, 2.1775, 2.77, 4.1875, 10};
-    // angularityRecoBinsVec[2][0] = {-5, 0.295, 0.475, 0.5875, 0.7, 0.82, 0.94, 1.15, 1.4125, 2.395, 10};
+    // angularityRecoBinsVec[0][1] = {-5, 0.355, 0.6325, 0.9325, 1.1875, 1.4575, 1.735, 2.155, 2.7775, 4.39, 10}; //0-10%
+    // angularityRecoBinsVec[1][1] = {-5, -0.14, 0.6025, 0.8125, 0.9925, 1.1875, 1.4275, 1.7575, 2.2675, 3.4675, 10}; //10-40%
+    // angularityRecoBinsVec[2][1] = {-5, 0.16, 0.295, 0.4075, 0.4975, 0.6025, 0.7, 0.8575, 1.075, 1.7575, 10};    //40-80%
 
-    // angularityRecoBinsVec[0][1] = {-5, 0.355, 0.6325, 0.9325, 1.1875, 1.4575, 1.735, 2.155, 2.7775, 4.39, 10};
-    // angularityRecoBinsVec[1][1] = {-5, -0.14, 0.6025, 0.8125, 0.9925, 1.1875, 1.4275, 1.7575, 2.2675, 3.4675, 10};
-    // angularityRecoBinsVec[2][1] = {-5, 0.16, 0.295, 0.4075, 0.4975, 0.6025, 0.7, 0.8575, 1.075, 1.7575, 10};
+    // angularityRecoBinsVec[0][2] = {-5, 0.235, 0.52, 0.76, 0.9925, 1.2325, 1.48, 1.8475, 2.4175, 3.8875, 10}; //0-10%
+    // angularityRecoBinsVec[1][2] = {-5, -0.26, 0.4825, 0.6625, 0.82, 0.9925, 1.195, 1.495, 1.9525, 3.07, 10}; //10-40%
+    // angularityRecoBinsVec[2][2] = {-5, 0.1, 0.2125, 0.31, 0.3775, 0.46, 0.55, 0.67, 0.8425, 1.345, 10};   //40-80%
 
-    // angularityRecoBinsVec[0][2] = {-5, 0.235, 0.52, 0.76, 0.9925, 1.2325, 1.48, 1.8475, 2.4175, 3.8875, 10};
-    // angularityRecoBinsVec[1][2] = {-5, -0.26, 0.4825, 0.6625, 0.82, 0.9925, 1.195, 1.495, 1.9525, 3.07, 10};
-    // angularityRecoBinsVec[2][2] = {-5, 0.1, 0.2125, 0.31, 0.3775, 0.46, 0.55, 0.67, 0.8425, 1.345, 10};
+    // angularityRecoBinsVec[0][3] = {-5, 0.0175, 0.385, 0.565, 0.745, 0.94, 1.1425, 1.48, 1.9525, 3.34, 10}; //0-10%
+    // angularityRecoBinsVec[1][3] = {-5, -0.2825, 0.325, 0.4675, 0.595, 0.7375, 0.895, 1.135, 1.51, 2.425, 10}; //10-40%
+    // angularityRecoBinsVec[2][3] = {-5, 0.04, 0.1225, 0.1825, 0.2425, 0.3025, 0.3775, 0.4675, 0.6175, 1.0675, 10};  //40-80%
 
-    // angularityRecoBinsVec[0][3] = {-5, 0.0175, 0.385, 0.565, 0.745, 0.94, 1.1425, 1.48, 1.9525, 3.34, 10};
-    // angularityRecoBinsVec[1][3] = {-5, -0.2825, 0.325, 0.4675, 0.595, 0.7375, 0.895, 1.135, 1.51, 2.425, 10};
-    // angularityRecoBinsVec[2][3] = {-5, 0.04, 0.1225, 0.1825, 0.2425, 0.3025, 0.3775, 0.4675, 0.6175, 1.0675, 10};
+    ///////////////////////////////////////////////////////////////////////////
+    // Mc bins from precalculated bin sizes from fillTestHistsImproved.C
 
     TFile *binSizes = new TFile(Form("binningMc%iReco%i.root", nMcBins, nRecoBins), "read");
     if (!binSizes || binSizes->IsZombie())
@@ -429,29 +432,30 @@ void createResponseMatrixAngularity3CentralityBins()
         TH1D *hPtMcRebinned = (TH1D *)binSizes->Get(dir + "hPtMcRebinned" + centralityNames[0]);
         TH1D *hZMcRebinned = (TH1D *)binSizes->Get(dir + "hZMcRebinned" + centralityNames[0]);
 
-        ptMcBinsVec[iCent] = getAxis(hPtMcRebinned);
-        zMcBinsVec[iCent] = getAxis(hZMcRebinned);
+        ptMcBinsVec[iCent] = getBinEdges(hPtMcRebinned);
+        zMcBinsVec[iCent] = getBinEdges(hZMcRebinned);
 
         TH1D *hAngularityMcRebinned[nAngularities];
 
         for (Int_t iLambda = 0; iLambda < nAngularities; iLambda++)
         {
             hAngularityMcRebinned[iLambda] = (TH1D *)binSizes->Get(dir + Form("hAngularity_%iMcRebinned", iLambda) + centralityNames[0]);
-            angularityMcBinsVec[iCent][iLambda] = getAxis(hAngularityMcRebinned[iLambda]);
+            angularityMcBinsVec[iCent][iLambda] = getBinEdges(hAngularityMcRebinned[iLambda]);
         }
 
         cout << "ptMcBinsVecpt[" << iCent << "] = {";
-        PrintComponent(ptMcBinsVec[iCent]);
+        PrintVectorBinEdges(ptMcBinsVec[iCent]);
         cout << "zMcBinsVec[" << iCent << "] = {";
-        PrintComponent(zMcBinsVec[iCent]);
+        PrintVectorBinEdges(zMcBinsVec[iCent]);
         for (Int_t iLambda = 0; iLambda < 4; iLambda++)
         {
             cout << "angularityMcBinsVec[" << iCent << "][" << iLambda << "] = {";
-            PrintComponent(angularityMcBinsVec[iCent][iLambda]);
+            PrintVectorBinEdges(angularityMcBinsVec[iCent][iLambda]);
         }
     }
 
-    // Create histograms
+    ///////////////////////////////////////////////////////////////////////////
+    // Create/read response RooUnfold
     TFile *responseFile = new TFile(Form("responseMc%iReco%i.root", nMcBins, nRecoBins), "READ");
     if (!responseFile || responseFile->IsZombie())
     {
@@ -578,7 +582,7 @@ void createResponseMatrixAngularity3CentralityBins()
 
     } // if readTree
 
-    else // if not readTree
+    else // if not readTree -  save time and don't fill from tree
     {
         for (Int_t iCent = 0; iCent < nCentralityBins; iCent++)
         {
@@ -618,6 +622,8 @@ void createResponseMatrixAngularity3CentralityBins()
 
         if (!readTree)
             continue;
+
+        // Save response and test histograms
         responseFile->cd();
         TDirectory *dir = responseFile->mkdir(centralityNames[iCent]);
         dir->cd();
