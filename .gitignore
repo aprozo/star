@@ -28,3 +28,8 @@
 *dictUmbrella.h
 *.cxx_tmp_*
 *.pdf
+
+*.index
+*.pb
+*Step?_*
+__pycache__
