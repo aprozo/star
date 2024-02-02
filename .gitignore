@@ -33,3 +33,4 @@
 *.pb
 *Step?_*
 __pycache__
+savedModels
