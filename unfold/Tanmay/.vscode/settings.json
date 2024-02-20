@@ -1,6 +1,7 @@
 {
   "files.associations": {
     "*.cxx": "cpp",
-    "analyzeTree.C": "cpp"
+    "analyzeTree.C": "cpp",
+    "calculateAngles.C": "cpp"
   }
 }
