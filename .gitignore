@@ -29,6 +29,8 @@
 *.cxx_tmp_*
 *.pdf
 
+*.npy
+*.csv
 *.index
 *.pb
 *Step?_*
